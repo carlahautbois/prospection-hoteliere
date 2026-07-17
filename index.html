@@ -146,7 +146,46 @@
         $('loginError').textContent='Connexion à la base impossible : '+(error?.message||error);
       }
     }
-    async function login(){ $('loginError').textContent=''; const {data,error}=await SB.auth.signInWithPassword({email:clean($('email').value),password:$('password').value}); if(error) return $('loginError').textContent='Connexion impossible : '+error.message; currentUser=data.user; show('app'); await loadAll();}
+    async function login(){
+      const errorBox=$('loginError');
+      const email=clean($('email').value);
+      const password=$('password').value;
+
+      if(!email || !password){
+        errorBox.textContent='Renseigne ton e-mail et ton mot de passe.';
+        return;
+      }
+
+      if(!SB){
+        errorBox.textContent='La connexion à Supabase n’est pas initialisée. Actualise la page.';
+        return;
+      }
+
+      errorBox.className='ok';
+      errorBox.textContent='Connexion en cours…';
+
+      try{
+        const timeout=new Promise((_,reject)=>
+          setTimeout(()=>reject(new Error('La base Supabase ne répond pas. Le projet est peut-être suspendu, supprimé ou inaccessible.')),12000)
+        );
+
+        const request=SB.auth.signInWithPassword({email,password});
+        const {data,error}=await Promise.race([request,timeout]);
+
+        if(error) throw error;
+
+        currentUser=data?.user||null;
+        if(!currentUser) throw new Error('Aucun utilisateur n’a été retourné.');
+
+        errorBox.textContent='';
+        errorBox.className='err';
+        show('app');
+        await loadAll();
+      }catch(error){
+        errorBox.className='err';
+        errorBox.textContent='Connexion impossible : '+(error?.message||String(error));
+      }
+    }
     async function logout(){await SB.auth.signOut();location.reload()}
     async function loadAll(){ const {data:m,error:e1}=await SB.from('marques').select('*').order('groupe').order('marque'); if(e1) return alert('Erreur marques : '+e1.message); const {data:c,error:e2}=await SB.from('contacts').select('*').order('groupe').order('marque').order('contact_nom'); if(e2) return alert('Erreur contacts : '+e2.message); const {data:cf,error:e3}=await SB.from('custom_fields').select('*').order('sort_order').order('label'); if(e3 && !String(e3.message).includes('does not exist')) return alert('Erreur champs personnalisés : '+e3.message); const {data:cv,error:e4}=await SB.from('custom_field_values').select('*'); if(e4 && !String(e4.message).includes('does not exist')) return alert('Erreur valeurs personnalisées : '+e4.message); marques=m||[]; contacts=c||[]; customFields=cf||[]; customValues=cv||[]; buildFilters(); render(); }
     function buildFilters(){ const gammes=['Luxury','Upscale','Midscale','Economy']; $('gammes').innerHTML=gammes.map(g=>`<button class="chip" onclick="setChip('gamme','${g}',this)">${g}</button>`).join(''); const secs=[...new Set(marques.map(x=>x.section).filter(Boolean))].sort(); $('sections').innerHTML=secs.map(s=>`<button class="chip" onclick="setChip('section',${JSON.stringify(s)},this)">${safe(s)}</button>`).join(''); const groupes=[...new Set(marques.map(x=>x.groupe).filter(Boolean))].sort(); $('groupe').innerHTML='<option value="">Tous les groupes</option>'+groupes.map(g=>`<option>${safe(g)}</option>`).join(''); buildCustomFilters(); }
