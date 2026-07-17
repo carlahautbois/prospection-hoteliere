@@ -62,7 +62,7 @@
 </style>
 </head>
 <body>
-  <div id="setup" class="login">
+  <div id="setup" class="login hidden">
     <h1>Configuration Supabase</h1>
     <p class="muted">Colle l'URL du projet et la clé publishable. La configuration reste enregistrée dans ce navigateur.</p>
     <label>Project URL</label><input id="setupUrl" placeholder="https://xxxx.supabase.co" />
@@ -119,48 +119,32 @@
     const uuid=()=> (crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random())).replaceAll('-','').slice(0,18);
     function show(id){['setup','login','app'].forEach(x=>$(x).classList.add('hidden'));$(id).classList.remove('hidden')}
    function getConfig(){
-  try {
-    const saved = JSON.parse(
-      localStorage.getItem('prospection_supabase') || 'null'
-    );
-
-    if (saved?.url && saved?.key) {
-      return saved;
+      return {
+        url: EMBEDDED_SUPABASE_URL,
+        key: EMBEDDED_SUPABASE_KEY
+      };
     }
-  } catch (e) {}
 
-  return {
-    url: EMBEDDED_SUPABASE_URL,
-    key: EMBEDDED_SUPABASE_KEY
-  };
-}
-
-function saveConfig(){
-  const url = document.getElementById('setupUrl').value.trim();
-  const key = document.getElementById('setupKey').value.trim();
-  const errorBox = document.getElementById('setupError');
-
-  if (!url || !key) {
-    errorBox.textContent = "Complète les deux champs.";
-    return;
-  }
-
-  localStorage.setItem(
-    'prospection_supabase',
-    JSON.stringify({ url, key })
-  );
-
-  location.reload();
-}
+    function saveConfig(){
+      init();
+    }
     function resetConfig(){ localStorage.removeItem('prospection_supabase'); location.reload(); }
     async function init(){
-      const c=getConfig();
-      SB=window.supabase.createClient(c.url,c.key);
-      const {data}=await SB.auth.getSession();
-      currentUser=data?.session?.user||null;
-      if(!currentUser) return show('login');
-      show('app');
-      await loadAll();
+      show('login');
+      $('loginError').textContent='';
+      try{
+        const c=getConfig();
+        SB=window.supabase.createClient(c.url,c.key);
+        const {data,error}=await SB.auth.getSession();
+        if(error) throw error;
+        currentUser=data?.session?.user||null;
+        if(!currentUser) return show('login');
+        show('app');
+        await loadAll();
+      }catch(error){
+        show('login');
+        $('loginError').textContent='Connexion à la base impossible : '+(error?.message||error);
+      }
     }
     async function login(){ $('loginError').textContent=''; const {data,error}=await SB.auth.signInWithPassword({email:clean($('email').value),password:$('password').value}); if(error) return $('loginError').textContent='Connexion impossible : '+error.message; currentUser=data.user; show('app'); await loadAll();}
     async function logout(){await SB.auth.signOut();location.reload()}
@@ -245,7 +229,10 @@ function saveConfig(){
     function openFieldManager(){ $('modalRoot').className='modalBg'; $('modalRoot').innerHTML=`<div class="modal"><div class="modalTop"><div><h2 class="sectionTitle">Ajouter un filtre / catégorie</h2><div class="muted">Le champ apparaîtra dans les fiches, dans le formulaire de modification et dans les filtres.</div></div><button class="btn" onclick="closeModal()">Fermer</button></div><form id="fieldForm"><div class="formGrid">${field('label','Nom du champ','','text',null,'span2')}${field('field_type','Type','','text',['text','select','number','yesno'])}${field('sort_order','Ordre','100')}${field('options','Options si liste déroulante','','textarea',null,'span4')}</div><div class="muted" style="margin-top:8px">Pour une liste déroulante, écris les valeurs séparées par des virgules. Exemple : Bail, Franchise, Management.</div><div class="footerBtns"><button type="button" class="btn" onclick="closeModal()">Annuler</button><button type="button" class="btn primary" onclick="saveCustomField()">Créer le champ</button></div></form><div id="fieldMsg"></div></div>`; }
     async function saveCustomField(){ const f=formObj($('fieldForm')); const label=clean(f.label); if(!label) return $('fieldMsg').innerHTML='<div class="err">Nom du champ obligatoire.</div>'; const rec={field_key:fieldKey(label), label, field_type:clean(f.field_type)||'text', options:clean(f.options)||null, sort_order:Number(f.sort_order||100), show_filter:true}; const {error}=await SB.from('custom_fields').insert(rec); if(error) return $('fieldMsg').innerHTML='<div class="err">Erreur : '+safe(error.message)+'</div>'; $('fieldMsg').innerHTML='<div class="ok">Champ créé.</div>'; await loadAll(); setTimeout(closeModal,450); }
 function openConfigInfo(){alert('Le site utilise Supabase avec connexion obligatoire. Les utilisateurs autorisés se gèrent dans Supabase > Authentication > Users. Pour partager le site, ajoute simplement la personne dans les Users Supabase puis donne-lui le lien Netlify.');}
-    init(); loadProject();
+    window.addEventListener('DOMContentLoaded', async () => {
+      loadProject();
+      await init();
+    });
   </script>
 </body>
 </html>
