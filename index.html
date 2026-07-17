@@ -118,10 +118,40 @@
     function dedupeBrands(list){ const seen=new Set(); return list.filter(m=>{ const key=norm(m.marque)+'|'+norm(m.groupe); if(seen.has(key)) return false; seen.add(key); return true; }); }
     const uuid=()=> (crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random())).replaceAll('-','').slice(0,18);
     function show(id){['setup','login','app'].forEach(x=>$(x).classList.add('hidden'));$(id).classList.remove('hidden')}
-    function getConfig(){
-      return {url: EMBEDDED_SUPABASE_URL, key: EMBEDDED_SUPABASE_KEY};
+   function getConfig(){
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem('prospection_supabase') || 'null'
+    );
+
+    if (saved?.url && saved?.key) {
+      return saved;
     }
-    function saveConfig(){ init(); }
+  } catch (e) {}
+
+  return {
+    url: EMBEDDED_SUPABASE_URL,
+    key: EMBEDDED_SUPABASE_KEY
+  };
+}
+
+function saveConfig(){
+  const url = document.getElementById('setupUrl').value.trim();
+  const key = document.getElementById('setupKey').value.trim();
+  const errorBox = document.getElementById('setupError');
+
+  if (!url || !key) {
+    errorBox.textContent = "Complète les deux champs.";
+    return;
+  }
+
+  localStorage.setItem(
+    'prospection_supabase',
+    JSON.stringify({ url, key })
+  );
+
+  location.reload();
+}
     function resetConfig(){ localStorage.removeItem('prospection_supabase'); location.reload(); }
     async function init(){
       const c=getConfig();
