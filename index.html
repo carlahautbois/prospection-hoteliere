@@ -23,6 +23,19 @@
     .filterTitle{color:var(--gold);font-weight:700;font-size:12px;letter-spacing:2.2px;text-transform:uppercase;margin:21px 0 10px}
     .search,.side select,.side input{width:100%;padding:12px 13px;border-radius:10px;border:1px solid #46392d;background:#30271f;color:#fff;font-weight:400}
     .chips{display:flex;flex-wrap:wrap;gap:8px}
+    .resetFiltersBtn{
+      width:100%;
+      margin-top:10px;
+      background:#fffaf2;
+      color:var(--accent2);
+      border:1px solid var(--accent);
+      font-weight:700;
+      padding:11px 13px;
+    }
+    .resetFiltersBtn:hover{
+      background:var(--accent);
+      color:#fff;
+    }
     .chip{border:1px solid #4d3e31;background:#211b15;color:#fff;border-radius:22px;padding:9px 13px;font-weight:500;cursor:pointer;font-size:13px}
     .chip.active{background:var(--accent);border-color:var(--accent);font-weight:600}
     .seg{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #4d3e31;border-radius:11px;overflow:hidden}
@@ -82,7 +95,9 @@
   <div id="app" class="app hidden">
     <aside class="side">
       <div class="brand"><span class="dot"></span>Prospection<br>Hôtelière</div><div class="subtitle">Filtrer · éditer · exporter</div><div class="nav"><a class="active" href="index.html">Enseignes</a><a href="investisseurs.html">Investisseurs</a></div><div class="rule"></div>
-      <div class="filterTitle">Recherche libre</div><input id="q" class="search" placeholder="Marque, groupe, contact, note…" oninput="render()" />
+      <div class="filterTitle">Recherche libre</div>
+      <input id="q" class="search" placeholder="Marque, groupe, contact, note…" oninput="render()" />
+      <button class="btn resetFiltersBtn" onclick="resetFilters()">Réinitialiser tous les filtres</button>
       <div class="filterTitle">Gamme</div><div id="gammes" class="chips"></div>
       <div class="filterTitle">Type de structure</div><div id="sections" class="chips"></div>
       <div class="filterTitle">Groupe</div><select id="groupe" onchange="render()"><option value="">Tous les groupes</option></select>
@@ -97,9 +112,17 @@
       <div class="filterTitle">Compte</div><button class="btn dark" onclick="logout()">Déconnexion</button>
     </aside>
     <main class="main">
-      <div class="top"><div><div class="project"><input id="projectName" placeholder="Nom du projet en cours…"/><button class="btn primary" onclick="saveProject()">+ Mémoriser ce projet</button><button class="btn" onclick="resetFilters()">+ Nouvelle recherche</button></div><div id="savedHint" class="hint">Aucun projet mémorisé — réglez vos filtres puis mémorisez le projet.</div></div><div class="stats"><div class="stat"><b id="sMarques">0</b><span>MARQUES</span></div><div class="stat"><b id="sGroupes">0</b><span>GROUPES</span></div><div class="stat"><b id="sContacts">0</b><span>CONTACTS UNIQUES</span></div></div></div>
+      <div class="top"><div><div class="project">
+        <input id="projectName" placeholder="Nom du projet en cours…"/>
+        <button class="btn primary" onclick="saveProject()">+ Mémoriser ce projet</button>
+        <select id="savedProjects" class="btn" onchange="loadSelectedProject()">
+          <option value="">Retrouver un projet mémorisé…</option>
+        </select>
+        <button class="btn" onclick="deleteSelectedProject()">Supprimer le projet</button>
+        <button class="btn" onclick="resetFilters()">+ Nouvelle recherche</button>
+      </div><div id="savedHint" class="hint">Aucun projet sélectionné.</div></div><div class="stats"><div class="stat"><b id="sMarques">0</b><span>MARQUES</span></div><div class="stat"><b id="sGroupes">0</b><span>GROUPES</span></div><div class="stat"><b id="sContacts">0</b><span>CONTACTS UNIQUES</span></div></div></div>
       <div class="toolbar">
-        <div class="toolbarMain"><span class="toolbarLabel">Actions</span><button class="btn primary" onclick="openEditNew()">+ Ajouter une marque</button><button class="btn" onclick="openFieldManager()">+ Ajouter un filtre / catégorie</button><button class="btn" onclick="exportCSV()">Télécharger les résultats filtrés</button><button class="btn" onclick="copyEmails()">Copier les e-mails visibles</button></div>
+        <div class="toolbarMain"><span class="toolbarLabel">Actions</span><button class="btn primary" onclick="openEditNew()">+ Ajouter une marque</button><button class="btn" onclick="exportCSV()">Télécharger les résultats filtrés</button><button class="btn" onclick="copyEmails()">Copier les e-mails visibles</button></div>
         <div class="toolbarSecondary"><button class="btn ghost" onclick="loadAll()">Actualiser les données</button></div>
       </div>
       <div class="tableWrap"><div class="head"><div>Marque</div><div>Groupe</div><div>Gamme</div><div>Structure</div><div>France</div><div>Europe</div><div>TGFA</div><div>Chambre</div><div>Contacts</div></div><div id="rows"></div></div>
@@ -113,6 +136,14 @@
     const $=id=>document.getElementById(id); const clean=v=>(v??'').toString().trim(); const boolTxt=v=>v===true?'<span class="yes">Oui</span>':v===false?'<span class="no">Non</span>':'—';
     const safe=s=>String(s??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
     const EXCLUDED_BRAND_NAMES=['RADISSON HOTEL GROUP'];
+    const FIXED_DEVELOPMENT_FIELD={
+      field_key:'zones_developpement_france',
+      label:'Zones de développement en France',
+      field_type:'text',
+      options:null,
+      sort_order:5,
+      show_filter:true
+    };
     const norm=v=>clean(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
     function isVisibleBrand(m){ return m && !EXCLUDED_BRAND_NAMES.includes(clean(m.marque).toUpperCase()); }
     function dedupeBrands(list){ const seen=new Set(); return list.filter(m=>{ const key=norm(m.marque)+'|'+norm(m.groupe); if(seen.has(key)) return false; seen.add(key); return true; }); }
@@ -187,9 +218,22 @@
       }
     }
     async function logout(){await SB.auth.signOut();location.reload()}
-    async function loadAll(){ const {data:m,error:e1}=await SB.from('marques').select('*').order('groupe').order('marque'); if(e1) return alert('Erreur marques : '+e1.message); const {data:c,error:e2}=await SB.from('contacts').select('*').order('groupe').order('marque').order('contact_nom'); if(e2) return alert('Erreur contacts : '+e2.message); const {data:cf,error:e3}=await SB.from('custom_fields').select('*').order('sort_order').order('label'); if(e3 && !String(e3.message).includes('does not exist')) return alert('Erreur champs personnalisés : '+e3.message); const {data:cv,error:e4}=await SB.from('custom_field_values').select('*'); if(e4 && !String(e4.message).includes('does not exist')) return alert('Erreur valeurs personnalisées : '+e4.message); marques=m||[]; contacts=c||[]; customFields=cf||[]; customValues=cv||[]; buildFilters(); render(); }
-    function buildFilters(){ const gammes=['Luxury','Upscale','Midscale','Economy']; $('gammes').innerHTML=gammes.map(g=>`<button class="chip" onclick="setChip('gamme','${g}',this)">${g}</button>`).join(''); const secs=[...new Set(marques.map(x=>x.section).filter(Boolean))].sort(); $('sections').innerHTML=secs.map(s=>`<button class="chip" onclick="setChip('section',${JSON.stringify(s)},this)">${safe(s)}</button>`).join(''); const groupes=[...new Set(marques.map(x=>x.groupe).filter(Boolean))].sort(); $('groupe').innerHTML='<option value="">Tous les groupes</option>'+groupes.map(g=>`<option>${safe(g)}</option>`).join(''); buildCustomFilters(); }
+    async function loadAll(){ const {data:m,error:e1}=await SB.from('marques').select('*').order('groupe').order('marque'); if(e1) return alert('Erreur marques : '+e1.message); const {data:c,error:e2}=await SB.from('contacts').select('*').order('groupe').order('marque').order('contact_nom'); if(e2) return alert('Erreur contacts : '+e2.message); const {data:cf,error:e3}=await SB.from('custom_fields').select('*').order('sort_order').order('label'); if(e3 && !String(e3.message).includes('does not exist')) return alert('Erreur champs personnalisés : '+e3.message); const {data:cv,error:e4}=await SB.from('custom_field_values').select('*'); if(e4 && !String(e4.message).includes('does not exist')) return alert('Erreur valeurs personnalisées : '+e4.message); marques=m||[]; contacts=c||[]; customFields=cf||[];
+      if(!customFields.some(f=>f.field_key===FIXED_DEVELOPMENT_FIELD.field_key)){
+        customFields=[FIXED_DEVELOPMENT_FIELD,...customFields];
+      }
+      customValues=cv||[];
+      buildFilters();
+      render();
+    }
+    function buildFilters(){ const gammes=['Luxury','Upscale','Midscale','Economy']; $('gammes').innerHTML=gammes.map(g=>`<button class="chip" data-value="${safe(g)}" onclick="setChip('gamme',this.dataset.value,this)">${safe(g)}</button>`).join(''); const secs=[...new Set(marques.map(x=>x.section).filter(Boolean))].sort(); $('sections').innerHTML=secs.map(s=>`<button class="chip" data-value="${safe(s)}" onclick="setChip('section',this.dataset.value,this)">${safe(s)}</button>`).join(''); const groupes=[...new Set(marques.map(x=>x.groupe).filter(Boolean))].sort(); $('groupe').innerHTML='<option value="">Tous les groupes</option>'+groupes.map(g=>`<option>${safe(g)}</option>`).join(''); buildCustomFilters(); syncFilterButtons(); }
     function setChip(k,v,el){filters[k]=filters[k]===v?null:v; [...el.parentNode.children].forEach(b=>b.classList.remove('active')); if(filters[k]) el.classList.add('active'); render()}
+    function syncFilterButtons(){
+      document.querySelectorAll('#gammes .chip').forEach(b=>b.classList.toggle('active',b.dataset.value===filters.gamme));
+      document.querySelectorAll('#sections .chip').forEach(b=>b.classList.toggle('active',b.dataset.value===filters.section));
+      document.querySelectorAll('#pfSeg button').forEach(b=>b.classList.toggle('active',b.dataset.v===filters.pf));
+      document.querySelectorAll('#peSeg button').forEach(b=>b.classList.toggle('active',b.dataset.v===filters.pe));
+    }
     function setSeg(k,el){filters[k]=el.dataset.v; [...el.parentNode.children].forEach(b=>b.classList.remove('active')); el.classList.add('active'); render()}
     function toggleBtn(el){el.classList.toggle('active')}
     function nums(txt){return (clean(txt).replace(',', '.').match(/\d+(?:\.\d+)?/g)||[]).map(Number)}
@@ -213,7 +257,10 @@
     function customVal(idMarque,key){const v=customValues.find(x=>x.id_marque===idMarque && x.field_key===key); return v?clean(v.value):'';}
     function customValuesFor(m){return customFields.map(f=>({field:f,value:customVal(m.id_marque,f.field_key)}));}
     function buildCustomFilters(){ const wrap=$('customFiltersWrap'); if(!wrap) return; if(!customFields.length){wrap.innerHTML=''; return;} wrap.innerHTML='<div class="filterTitle">Filtres personnalisés</div><div class="customFilters">'+customFields.filter(f=>f.show_filter!==false).map(f=>customFilterHtml(f)).join('')+'</div>'; }
-    function customFilterHtml(f){ const k=safe(f.field_key), label=safe(f.label); if(f.field_type==='number') return `<div><label class="smallLabel">${label}</label><div class="dual"><input id="cf_${k}_min" type="number" placeholder="Min" oninput="render()"><input id="cf_${k}_max" type="number" placeholder="Max" oninput="render()"></div></div>`; const opts=(f.options||'').split(/[;,]/).map(x=>clean(x)).filter(Boolean); if(f.field_type==='select'||opts.length) return `<div><label class="smallLabel">${label}</label><select id="cf_${k}" onchange="render()"><option value="">Tous</option>${opts.map(o=>`<option>${safe(o)}</option>`).join('')}</select></div>`; if(f.field_type==='yesno') return `<div><label class="smallLabel">${label}</label><select id="cf_${k}" onchange="render()"><option value="">Tous</option><option>Oui</option><option>Non</option></select></div>`; return `<div><label class="smallLabel">${label}</label><input id="cf_${k}" placeholder="Filtrer…" oninput="render()"></div>`; }
+    function customFilterHtml(f){ const k=safe(f.field_key), label=safe(f.label); if(f.field_type==='number') return `<div><label class="smallLabel">${label}</label><div class="dual"><input id="cf_${k}_min" type="number" placeholder="Min" oninput="render()"><input id="cf_${k}_max" type="number" placeholder="Max" oninput="render()"></div></div>`; const opts=(f.options||'').split(/[;,]/).map(x=>clean(x)).filter(Boolean); if(f.field_type==='select'||opts.length) return `<div><label class="smallLabel">${label}</label><select id="cf_${k}" onchange="render()"><option value="">Tous</option>${opts.map(o=>`<option>${safe(o)}</option>`).join('')}</select></div>`; if(f.field_type==='yesno') return `<div><label class="smallLabel">${label}</label><select id="cf_${k}" onchange="render()"><option value="">Tous</option><option>Oui</option><option>Non</option></select></div>`;
+      const placeholder=f.field_key==='zones_developpement_france'?'Ex. Paris, Lyon, littoral…':'Filtrer…';
+      return `<div><label class="smallLabel">${label}</label><input id="cf_${k}" placeholder="${placeholder}" oninput="render()"></div>`;
+    }
     function customFilterOk(m){ for(const f of customFields.filter(x=>x.show_filter!==false)){ const v=customVal(m.id_marque,f.field_key); if(f.field_type==='number'){ const min=$('cf_'+f.field_key+'_min')?.value||'', max=$('cf_'+f.field_key+'_max')?.value||''; if(!rangeOk(v,min,max)) return false; } else { const q=clean($('cf_'+f.field_key)?.value||''); if(q && clean(v).toLowerCase()!==q.toLowerCase() && !clean(v).toLowerCase().includes(q.toLowerCase())) return false; } } return true; }
 
     function render(){ const q=clean($('q').value).toLowerCase(); filtered=marques.filter(m=>isVisibleBrand(m)).filter(m=>{ const cs=contactList(m); const hay=[m.marque,m.groupe,m.gamme,m.section,m.tgfa,m.surf_chambre_m2sdp,m.ratio_neuf_m2sdp_ch,m.ratio_rehab_m2sdp_ch,m.informations_complementaires,m.notes_suivi,...customValuesFor(m).map(x=>x.value),...cs.flatMap(c=>[c.contact_nom,c.contact_email,c.contact_tel,c.notes_suivi])].join(' ').toLowerCase(); if(q&&!hay.includes(q)) return false; if(filters.gamme&&m.gamme!==filters.gamme)return false; if(filters.section&&m.section!==filters.section)return false; if($('groupe').value&&m.groupe!==$('groupe').value)return false; if(filters.pf!==''&&String(m.presence_france)!==filters.pf)return false; if(filters.pe!==''&&String(m.presence_europe)!==filters.pe)return false; if(!rangeOk(m.surf_chambre_m2sdp,$('surfMin').value,$('surfMax').value))return false; if(!rangeOk(m.tgfa,$('tgfaMin').value,$('tgfaMax').value))return false; if(!rangeOk(m.ratio_neuf_m2sdp_ch,$('neufMin').value,$('neufMax').value))return false; if(!rangeOk(m.ratio_rehab_m2sdp_ch,$('rehabMin').value,$('rehabMax').value))return false; if($('onlyEmail').classList.contains('active')&&!cs.some(c=>clean(c.contact_email)))return false; if($('onlyTel').classList.contains('active')&&!cs.some(c=>clean(c.contact_tel)))return false; if(!customFilterOk(m))return false; return true; }); filtered=dedupeBrands(filtered); if(recentCreatedId){ filtered.sort((a,b)=>a.id_marque===recentCreatedId?-1:b.id_marque===recentCreatedId?1:0); } $('sMarques').textContent=filtered.length; $('sGroupes').textContent=new Set(filtered.map(x=>x.groupe).filter(Boolean)).size; $('sContacts').textContent=uniqueContactsCount(filtered.flatMap(m=>contactList(m))); $('rows').innerHTML=filtered.map(m=>rowHtml(m)).join(''); if(selectedId){const d=$('d_'+selectedId); if(d) d.classList.add('open')} }
@@ -241,8 +288,19 @@
       if(isNew){ $('groupeHidden').value=$('newGroupeInput')?.value||''; $('idGroupeHidden').value=$('newIdGroupeInput')?.value||''; }
       else { const opt=sel.selectedOptions[0]; $('groupeHidden').value=sel.value||''; $('idGroupeHidden').value=opt?.dataset?.id||''; }
     }
-    function customEditInput(f,m){ const val=customVal(m.id_marque,f.field_key); const name='custom_'+f.field_key; const opts=(f.options||'').split(/[;,]/).map(x=>clean(x)).filter(Boolean); if(f.field_type==='yesno') return field(name,f.label,val,'text',['Oui','Non']); if(f.field_type==='select'||opts.length) return field(name,f.label,val,'text',opts); if(f.field_type==='number') return field(name,f.label,val,'number'); return field(name,f.label,val); }
-    function customEditBlock(m){ if(!customFields.length) return `<div class="customBlock"><button type="button" class="btn" onclick="openFieldManager()">+ Ajouter un filtre / catégorie</button></div>`; return `<div class="customBlock"><div class="modalTop"><h3 class="sectionTitle">Filtres / catégories personnalisés</h3><button type="button" class="btn" onclick="openFieldManager()">+ Nouveau champ</button></div><div class="formGrid">${customFields.map(f=>customEditInput(f,m)).join('')}</div></div>`; }
+    function customEditInput(f,m){
+      const val=customVal(m.id_marque,f.field_key);
+      const name='custom_'+f.field_key;
+      const opts=(f.options||'').split(/[;,]/).map(x=>clean(x)).filter(Boolean);
+      if(f.field_key==='zones_developpement_france'){
+        return field(name,f.label,val,'textarea',null,'span4');
+      }
+      if(f.field_type==='yesno') return field(name,f.label,val,'text',['Oui','Non']);
+      if(f.field_type==='select'||opts.length) return field(name,f.label,val,'text',opts);
+      if(f.field_type==='number') return field(name,f.label,val,'number');
+      return field(name,f.label,val);
+    }
+    function customEditBlock(m){ if(!customFields.length) return `<div class="customBlock"></div>`; return `<div class="customBlock"><div class="modalTop"><h3 class="sectionTitle">Filtres / catégories personnalisés</h3></div><div class="formGrid">${customFields.map(f=>customEditInput(f,m)).join('')}</div></div>`; }
 
     function openEditNew(){openEdit(null)}
     function openEdit(id){ const m=id?marques.find(x=>x.id_marque===id):{id_marque:'M'+Date.now(),marque:'',groupe:'',id_groupe:'',gamme:'',section:'',presence_france:null,presence_europe:null}; const cs=id?contactList(m):[]; const gammes=['Luxury','Upscale','Midscale','Economy']; const sections=[...new Set([...marques.map(x=>x.section).filter(Boolean),'Groupe multi-marques','Groupe mono-marque','Enseigne indépendante'])].sort(); $('modalRoot').className='modalBg'; $('modalRoot').innerHTML=`<div class="modal"><div class="modalTop"><div><h2 class="sectionTitle">${id?'Modifier':'Nouvelle'} fiche marque</h2><div class="muted">Les modifications sont enregistrées dans Supabase.</div></div><button class="btn" onclick="closeModal()">Fermer</button></div><form id="editForm"><div class="formGrid">${field('marque','Marque',m.marque)}${groupField(m)}${field('id_marque','ID marque',m.id_marque)}${field('gamme','Gamme',m.gamme,'text',gammes)}${field('section','Type de structure',m.section,'text',sections)}${boolField('presence_france','Présence France',m.presence_france)}${boolField('presence_europe','Présence Europe',m.presence_europe)}${field('surf_chambre_m2sdp','Surface chambre',m.surf_chambre_m2sdp)}${field('tgfa','TGFA',m.tgfa)}${field('ratio_neuf_m2sdp_ch','Ratio neuf',m.ratio_neuf_m2sdp_ch)}${field('ratio_rehab_m2sdp_ch','Ratio réhab',m.ratio_rehab_m2sdp_ch)}${field('informations_complementaires','Infos complémentaires',m.informations_complementaires,'textarea',null,'span2')}${field('notes_suivi','Notes de suivi',m.notes_suivi,'textarea',null,'span2')}</div>${customEditBlock(m)}<h3 class="sectionTitle" style="margin-top:22px">Contacts</h3><div id="contactEdits">${cs.map(contactEditHtml).join('')}</div><button type="button" class="btn" onclick="addContactEdit('${safe(m.id_marque)}','${safe(m.marque)}','${safe(m.id_groupe||'')}','${safe(m.groupe||'')}')">+ Ajouter un contact</button><div class="footerBtns"><button type="button" class="btn" onclick="closeModal()">Annuler</button>${id?`<button type="button" class="btn" onclick="deleteBrand('${m.id_marque}')">Supprimer la marque</button>`:''}<button type="button" class="btn primary" onclick="saveEdit('${id||''}')">Enregistrer</button></div></form><div id="saveMsg"></div></div>`; }
@@ -257,11 +315,221 @@
       return out;
     }
     function toBool(v){return v==='true'?true:v==='false'?false:null}
-    async function saveEdit(oldId){ const f=formObj($('editForm')); const brand={id_marque:clean(f.id_marque)||('M'+Date.now()), marque:clean(f.marque), groupe:clean(f.groupe), id_groupe:clean(f.id_groupe), gamme:clean(f.gamme)||null, section:clean(f.section)||null, presence_france:toBool(f.presence_france), presence_europe:toBool(f.presence_europe), surf_chambre_m2sdp:clean(f.surf_chambre_m2sdp)||null, tgfa:clean(f.tgfa)||null, ratio_neuf_m2sdp_ch:clean(f.ratio_neuf_m2sdp_ch)||null, ratio_rehab_m2sdp_ch:clean(f.ratio_rehab_m2sdp_ch)||null, informations_complementaires:clean(f.informations_complementaires)||null, notes_suivi:clean(f.notes_suivi)||null}; if(!brand.marque) return $('saveMsg').innerHTML='<div class="err">La marque est obligatoire.</div>'; const {error:e}=await SB.from('marques').upsert(brand,{onConflict:'id_marque'}); if(e) return $('saveMsg').innerHTML='<div class="err">Erreur marque : '+safe(e.message)+'</div>'; if(!oldId){ clearFiltersNoRender(); recentCreatedId=brand.id_marque; } const boxes=[...document.querySelectorAll('.contactEdit')]; for(const box of boxes){ const obj=formObj(box); const id=box.dataset.contactId||('C'+uuid()); if(box.dataset.delete==='1'){ if(box.dataset.contactId) await SB.from('contacts').delete().eq('id_contact',box.dataset.contactId); continue; } if(!clean(obj.contact_nom)&&!clean(obj.contact_email)&&!clean(obj.contact_tel)) continue; const ct={id_contact:id,id_marque:brand.id_marque,marque:brand.marque,id_groupe:brand.id_groupe,groupe:brand.groupe,niveau_contact:clean(obj.niveau_contact)||null,contact_nom:clean(obj.contact_nom)||null,contact_email:clean(obj.contact_email)||null,contact_tel:clean(obj.contact_tel)||null,notes_suivi:clean(obj.notes_suivi)||null}; const {error:ce}=await SB.from('contacts').upsert(ct,{onConflict:'id_contact'}); if(ce) return $('saveMsg').innerHTML='<div class="err">Erreur contact : '+safe(ce.message)+'</div>'; } for(const fdef of customFields){ const value=clean(f['custom_'+fdef.field_key]); if(value){ const {error:ve}=await SB.from('custom_field_values').upsert({id_marque:brand.id_marque, field_key:fdef.field_key, value},{onConflict:'id_marque,field_key'}); if(ve) return $('saveMsg').innerHTML='<div class="err">Erreur champ personnalisé : '+safe(ve.message)+'</div>'; } else { await SB.from('custom_field_values').delete().eq('id_marque',brand.id_marque).eq('field_key',fdef.field_key); } } $('saveMsg').innerHTML='<div class="ok">Enregistré.</div>'; selectedId=brand.id_marque; await loadAll(); setTimeout(()=>{ closeModal(); const d=$('d_'+brand.id_marque); if(d)d.scrollIntoView({block:'start'}); },500); }
+    async function saveEdit(oldId){
+      const saveMsg=$('saveMsg');
+      const saveButton=document.querySelector('#editForm .btn.primary');
+      if(saveButton){
+        saveButton.disabled=true;
+        saveButton.textContent='Enregistrement…';
+      }
+      saveMsg.innerHTML='<div class="ok">Enregistrement en cours…</div>';
+
+      try{
+        const f=formObj($('editForm'));
+        const brand={
+          id_marque:clean(f.id_marque)||('M'+Date.now()),
+          marque:clean(f.marque),
+          groupe:clean(f.groupe),
+          id_groupe:clean(f.id_groupe),
+          gamme:clean(f.gamme)||null,
+          section:clean(f.section)||null,
+          presence_france:toBool(f.presence_france),
+          presence_europe:toBool(f.presence_europe),
+          surf_chambre_m2sdp:clean(f.surf_chambre_m2sdp)||null,
+          tgfa:clean(f.tgfa)||null,
+          ratio_neuf_m2sdp_ch:clean(f.ratio_neuf_m2sdp_ch)||null,
+          ratio_rehab_m2sdp_ch:clean(f.ratio_rehab_m2sdp_ch)||null,
+          informations_complementaires:clean(f.informations_complementaires)||null,
+          notes_suivi:clean(f.notes_suivi)||null
+        };
+
+        if(!brand.marque) throw new Error('La marque est obligatoire.');
+
+        const {error:brandError}=await SB
+          .from('marques')
+          .upsert(brand,{onConflict:'id_marque'});
+
+        if(brandError) throw new Error('Erreur marque : '+brandError.message);
+
+        if(!oldId){
+          clearFiltersNoRender();
+          recentCreatedId=brand.id_marque;
+        }
+
+        const boxes=[...document.querySelectorAll('.contactEdit')];
+        for(const box of boxes){
+          const obj=formObj(box);
+          const id=box.dataset.contactId||('C'+uuid());
+
+          if(box.dataset.delete==='1'){
+            if(box.dataset.contactId){
+              const {error:deleteError}=await SB
+                .from('contacts')
+                .delete()
+                .eq('id_contact',box.dataset.contactId);
+              if(deleteError) throw new Error('Erreur suppression contact : '+deleteError.message);
+            }
+            continue;
+          }
+
+          if(!clean(obj.contact_nom)&&!clean(obj.contact_email)&&!clean(obj.contact_tel)) continue;
+
+          const ct={
+            id_contact:id,
+            id_marque:brand.id_marque,
+            marque:brand.marque,
+            id_groupe:brand.id_groupe,
+            groupe:brand.groupe,
+            niveau_contact:clean(obj.niveau_contact)||null,
+            contact_nom:clean(obj.contact_nom)||null,
+            contact_email:clean(obj.contact_email)||null,
+            contact_tel:clean(obj.contact_tel)||null,
+            notes_suivi:clean(obj.notes_suivi)||null
+          };
+
+          const {error:contactError}=await SB
+            .from('contacts')
+            .upsert(ct,{onConflict:'id_contact'});
+
+          if(contactError) throw new Error('Erreur contact : '+contactError.message);
+        }
+
+        for(const fdef of customFields){
+          const value=clean(f['custom_'+fdef.field_key]);
+
+          if(value){
+            const {error:valueError}=await SB
+              .from('custom_field_values')
+              .upsert(
+                {id_marque:brand.id_marque,field_key:fdef.field_key,value},
+                {onConflict:'id_marque,field_key'}
+              );
+            if(valueError) throw new Error('Erreur champ personnalisé : '+valueError.message);
+          }else{
+            const {error:deleteValueError}=await SB
+              .from('custom_field_values')
+              .delete()
+              .eq('id_marque',brand.id_marque)
+              .eq('field_key',fdef.field_key);
+            if(deleteValueError && !String(deleteValueError.message).includes('does not exist')){
+              throw new Error('Erreur champ personnalisé : '+deleteValueError.message);
+            }
+          }
+        }
+
+        selectedId=brand.id_marque;
+        await loadAll();
+        saveMsg.innerHTML='<div class="ok">Marque enregistrée avec succès.</div>';
+
+        setTimeout(()=>{
+          closeModal();
+          const d=$('d_'+brand.id_marque);
+          if(d) d.scrollIntoView({block:'start'});
+        },600);
+
+      }catch(error){
+        saveMsg.innerHTML='<div class="err">'+safe(error?.message||String(error))+'</div>';
+        if(saveButton){
+          saveButton.disabled=false;
+          saveButton.textContent='Enregistrer';
+        }
+      }
+    }
+
     async function deleteBrand(id){ if(!confirm('Supprimer cette marque ? Les contacts liés seront aussi supprimés.'))return; await SB.from('contacts').delete().eq('id_marque',id); const {error}=await SB.from('marques').delete().eq('id_marque',id); if(error)return $('saveMsg').innerHTML='<div class="err">Erreur : '+safe(error.message)+'</div>'; selectedId=null; closeModal(); await loadAll(); }
-    function resetFilters(){ ['q','groupe','surfMin','surfMax','tgfaMin','tgfaMax','neufMin','neufMax','rehabMin','rehabMax'].forEach(id=>$(id).value=''); filters={gamme:null,section:null,pf:'',pe:''}; document.querySelectorAll('.chip.active').forEach(x=>x.classList.remove('active')); document.querySelectorAll('.seg').forEach(seg=>{[...seg.children].forEach((b,i)=>b.classList.toggle('active',i===0))}); document.querySelectorAll('[id^=cf_]').forEach(x=>x.value=''); selectedId=null; render(); }
-    function saveProject(){ const name=clean($('projectName').value)||'Projet sans nom'; const data={name,filters,q:$('q').value,groupe:$('groupe').value,surfMin:$('surfMin').value,surfMax:$('surfMax').value,tgfaMin:$('tgfaMin').value,tgfaMax:$('tgfaMax').value,neufMin:$('neufMin').value,neufMax:$('neufMax').value,rehabMin:$('rehabMin').value,rehabMax:$('rehabMax').value}; localStorage.setItem('prospection_project',JSON.stringify(data)); $('savedHint').textContent='Projet mémorisé : '+name; }
-    function loadProject(){try{const p=JSON.parse(localStorage.getItem('prospection_project')||'null'); if(!p)return; $('projectName').value=p.name||''; $('savedHint').textContent='Projet mémorisé : '+p.name; }catch(e){}}
+    function clearFiltersNoRender(){
+      ['q','groupe','surfMin','surfMax','tgfaMin','tgfaMax','neufMin','neufMax','rehabMin','rehabMax'].forEach(id=>{
+        if($(id)) $(id).value='';
+      });
+      filters={gamme:null,section:null,pf:'',pe:''};
+      document.querySelectorAll('.chip.active').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.seg').forEach(seg=>{
+        [...seg.children].forEach((b,i)=>b.classList.toggle('active',i===0));
+      });
+      document.querySelectorAll('[id^=cf_]').forEach(x=>x.value='');
+      if($('onlyEmail')) $('onlyEmail').classList.remove('active');
+      if($('onlyTel')) $('onlyTel').classList.remove('active');
+      selectedId=null;
+    }
+
+    function resetFilters(){
+      clearFiltersNoRender();
+      render();
+    }
+    function getSavedProjects(){
+      try{return JSON.parse(localStorage.getItem('prospection_projects')||'[]')||[];}
+      catch(e){return [];}
+    }
+    function refreshProjectList(selectedName=''){
+      const select=$('savedProjects');
+      if(!select) return;
+      const projects=getSavedProjects();
+      select.innerHTML='<option value="">Retrouver un projet mémorisé…</option>'+projects.map(p=>`<option value="${safe(p.name)}">${safe(p.name)}</option>`).join('');
+      if(selectedName) select.value=selectedName;
+      $('savedHint').textContent=projects.length ? projects.length+' projet(s) mémorisé(s).' : 'Aucun projet mémorisé.';
+    }
+    function currentProjectData(name){
+      const custom={};
+      document.querySelectorAll('[id^=cf_]').forEach(x=>custom[x.id]=x.value);
+      return {
+        name,
+        filters:{...filters},
+        q:$('q').value,
+        groupe:$('groupe').value,
+        surfMin:$('surfMin').value,surfMax:$('surfMax').value,
+        tgfaMin:$('tgfaMin').value,tgfaMax:$('tgfaMax').value,
+        neufMin:$('neufMin').value,neufMax:$('neufMax').value,
+        rehabMin:$('rehabMin').value,rehabMax:$('rehabMax').value,
+        onlyEmail:$('onlyEmail').classList.contains('active'),
+        onlyTel:$('onlyTel').classList.contains('active'),
+        custom
+      };
+    }
+    function saveProject(){
+      const name=clean($('projectName').value);
+      if(!name){alert('Donne un nom au projet avant de le mémoriser.');return;}
+      const projects=getSavedProjects();
+      const data=currentProjectData(name);
+      const index=projects.findIndex(p=>p.name.toLowerCase()===name.toLowerCase());
+      if(index>=0) projects[index]=data; else projects.push(data);
+      projects.sort((a,b)=>a.name.localeCompare(b.name,'fr',{sensitivity:'base'}));
+      localStorage.setItem('prospection_projects',JSON.stringify(projects));
+      refreshProjectList(name);
+      $('savedHint').textContent='Projet mémorisé : '+name;
+    }
+    function applyProject(p){
+      if(!p) return;
+      $('projectName').value=p.name||'';
+      filters={gamme:null,section:null,pf:'',pe:'',...(p.filters||{})};
+      $('q').value=p.q||'';
+      $('groupe').value=p.groupe||'';
+      ['surfMin','surfMax','tgfaMin','tgfaMax','neufMin','neufMax','rehabMin','rehabMax'].forEach(id=>$(id).value=p[id]||'');
+      $('onlyEmail').classList.toggle('active',!!p.onlyEmail);
+      $('onlyTel').classList.toggle('active',!!p.onlyTel);
+      Object.entries(p.custom||{}).forEach(([id,value])=>{if($(id)) $(id).value=value;});
+      syncFilterButtons();
+      selectedId=null;
+      render();
+      $('savedHint').textContent='Projet chargé : '+p.name;
+    }
+    function loadSelectedProject(){
+      const name=$('savedProjects').value;
+      if(!name) return;
+      const p=getSavedProjects().find(x=>x.name===name);
+      applyProject(p);
+    }
+    function deleteSelectedProject(){
+      const name=$('savedProjects').value;
+      if(!name){alert('Sélectionne d’abord un projet mémorisé.');return;}
+      if(!confirm('Supprimer le projet « '+name+' » ?')) return;
+      const projects=getSavedProjects().filter(p=>p.name!==name);
+      localStorage.setItem('prospection_projects',JSON.stringify(projects));
+      $('projectName').value='';
+      refreshProjectList();
+    }
+    function loadProject(){
+      refreshProjectList();
+    }
     function exportCSV(){ const cols=['marque','groupe','gamme','section','presence_france','presence_europe','tgfa','surf_chambre_m2sdp','ratio_neuf_m2sdp_ch','ratio_rehab_m2sdp_ch','informations_complementaires','notes_suivi']; const customCols=customFields.map(f=>f.label); const lines=[[...cols,...customCols].join(';'),...filtered.map(m=>[...cols.map(c=>'"'+clean(m[c]).replaceAll('\"','\"\"')+'"'),...customFields.map(f=>'"'+customVal(m.id_marque,f.field_key).replaceAll('\"','\"\"')+'"')].join(';'))]; const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='selection_prospection_hoteliere.csv'; a.click(); }
     async function copyEmails(){ const emails=[...new Set(filtered.flatMap(m=>contactList(m).map(c=>clean(c.contact_email))).filter(x=>x.includes('@')))]; await navigator.clipboard.writeText(emails.join('; ')); alert(emails.length+' e-mail(s) copiés.'); }
     
